@@ -241,6 +241,7 @@ static MDNode *tbaa_arrayptr;       // The pointer inside a jl_array_t
 static MDNode *tbaa_arraysize;      // A size in a jl_array_t
 static MDNode *tbaa_arraylen;       // The len in a jl_array_t
 static MDNode *tbaa_arrayflags;     // The flags in a jl_array_t
+static MDNode *tbaa_arrayoffset;     // The offset in a jl_array_t
 static MDNode *tbaa_arrayselbyte;   // a selector byte in a isbits Union jl_array_t
 static MDNode *tbaa_const;      // Memory that is immutable by the time LLVM can see it
 
@@ -2512,7 +2513,15 @@ static bool emit_builtin_call(jl_codectx_t &ctx, jl_cgval_t *ret, jl_value_t *f,
                     Type *AT = ArrayType::get(IntegerType::get(jl_LLVMContext, 8 * al), (elsz + al - 1) / al);
                     Value *data = emit_bitcast(ctx, emit_arrayptr(ctx, ary, ary_ex), AT->getPointerTo());
                     // isbits union selector bytes are stored after a->maxsize
-                    Value *selidx = emit_arraylen_prim(ctx, ary);
+                    Value *ndims = (nd == -1 ? emit_arrayndims(ctx, ary) : ConstantInt::get(T_int16, nd));
+                    Value *is_vector = ctx.builder.CreateICmpEQ(ndims, ConstantInt::get(T_int16, 1));
+                    Value *offset = emit_arrayoffset(ctx, ary);
+                    Value *selidx_v = ctx.builder.CreateSub(emit_vectormaxsize(ctx, ary), ctx.builder.CreateZExt(offset, T_size));
+                    Value *selidx_m = emit_arraylen(ctx, ary);
+                    Value *selidx = ctx.builder.CreateSelect(is_vector, selidx_v, selidx_m);
+                    Value *elsize = emit_arrayelsize(ctx, ary);
+                    selidx = ctx.builder.CreateMul(selidx, elsize);
+                    selidx = ctx.builder.CreateAdd(selidx, offset);
                     Value *ptindex = ctx.builder.CreateInBoundsGEP(AT, data, selidx);
                     ptindex = emit_bitcast(ctx, ptindex, T_pint8);
                     ptindex = ctx.builder.CreateInBoundsGEP(T_int8, ptindex, idx);
@@ -2606,7 +2615,15 @@ static bool emit_builtin_call(jl_codectx_t &ctx, jl_cgval_t *ret, jl_value_t *f,
                             jl_cgval_t rhs_union = convert_julia_type(ctx, val, ety);
                             Value *tindex = compute_tindex_unboxed(ctx, rhs_union, ety);
                             tindex = ctx.builder.CreateNUWSub(tindex, ConstantInt::get(T_int8, 1));
-                            Value *selidx = emit_arraylen_prim(ctx, ary);
+                            Value *ndims = (nd == -1 ? emit_arrayndims(ctx, ary) : ConstantInt::get(T_int16, nd));
+                            Value *is_vector = ctx.builder.CreateICmpEQ(ndims, ConstantInt::get(T_int16, 1));
+                            Value *offset = emit_arrayoffset(ctx, ary);
+                            Value *selidx_v = ctx.builder.CreateSub(emit_vectormaxsize(ctx, ary), ctx.builder.CreateZExt(offset, T_size));
+                            Value *selidx_m = emit_arraylen(ctx, ary);
+                            Value *selidx = ctx.builder.CreateSelect(is_vector, selidx_v, selidx_m);
+                            Value *elsize = emit_arrayelsize(ctx, ary);
+                            selidx = ctx.builder.CreateMul(selidx, elsize);
+                            selidx = ctx.builder.CreateAdd(selidx, offset);
                             Value *ptindex = ctx.builder.CreateInBoundsGEP(AT, data, selidx);
                             ptindex = emit_bitcast(ctx, ptindex, T_pint8);
                             ptindex = ctx.builder.CreateInBoundsGEP(T_int8, ptindex, idx);
@@ -2819,8 +2836,7 @@ static bool emit_builtin_call(jl_codectx_t &ctx, jl_cgval_t *ret, jl_value_t *f,
             return true;
         }
         else if (jl_is_datatype(sty) && sty->name == jl_array_typename) {
-            jl_value_t *ary_ex = jl_exprarg(ex, 1);
-            auto len = emit_arraylen(ctx, obj, ary_ex);
+            auto len = emit_arraylen(ctx, obj);
             jl_value_t *ety = jl_tparam0(sty);
             Value *elsize;
             size_t elsz = 0, al = 0;
@@ -6697,6 +6713,7 @@ static void init_julia_llvm_meta(void)
     tbaa_arraysize = tbaa_make_child("jtbaa_arraysize", tbaa_array_scalar).first;
     tbaa_arraylen = tbaa_make_child("jtbaa_arraylen", tbaa_array_scalar).first;
     tbaa_arrayflags = tbaa_make_child("jtbaa_arrayflags", tbaa_array_scalar).first;
+    tbaa_arrayoffset = tbaa_make_child("jtbaa_arrayoffset", tbaa_array_scalar).first;
     tbaa_const = tbaa_make_child("jtbaa_const", nullptr, true).first;
     tbaa_arrayselbyte = tbaa_make_child("jtbaa_arrayselbyte", tbaa_array_scalar).first;
     tbaa_unionselbyte = tbaa_make_child("jtbaa_unionselbyte", tbaa_data_scalar).first;
