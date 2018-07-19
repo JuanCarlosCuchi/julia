@@ -2515,15 +2515,13 @@ static bool emit_builtin_call(jl_codectx_t &ctx, jl_cgval_t *ret, jl_value_t *f,
                     // isbits union selector bytes are stored after a->maxsize
                     Value *ndims = (nd == -1 ? emit_arrayndims(ctx, ary) : ConstantInt::get(T_int16, nd));
                     Value *is_vector = ctx.builder.CreateICmpEQ(ndims, ConstantInt::get(T_int16, 1));
-                    Value *offset = emit_arrayoffset(ctx, ary);
+                    Value *offset = emit_arrayoffset(ctx, ary, nd);
                     Value *selidx_v = ctx.builder.CreateSub(emit_vectormaxsize(ctx, ary), ctx.builder.CreateZExt(offset, T_size));
                     Value *selidx_m = emit_arraylen(ctx, ary);
                     Value *selidx = ctx.builder.CreateSelect(is_vector, selidx_v, selidx_m);
-                    Value *elsize = emit_arrayelsize(ctx, ary);
-                    selidx = ctx.builder.CreateMul(selidx, elsize);
-                    selidx = ctx.builder.CreateAdd(selidx, offset);
                     Value *ptindex = ctx.builder.CreateInBoundsGEP(AT, data, selidx);
                     ptindex = emit_bitcast(ctx, ptindex, T_pint8);
+                    ptindex = ctx.builder.CreateInBoundsGEP(T_int8, ptindex, offset);
                     ptindex = ctx.builder.CreateInBoundsGEP(T_int8, ptindex, idx);
                     Instruction *tindex = tbaa_decorate(tbaa_arrayselbyte, ctx.builder.CreateLoad(T_int8, ptindex));
                     tindex->setMetadata(LLVMContext::MD_range, MDNode::get(jl_LLVMContext, {
@@ -2617,15 +2615,13 @@ static bool emit_builtin_call(jl_codectx_t &ctx, jl_cgval_t *ret, jl_value_t *f,
                             tindex = ctx.builder.CreateNUWSub(tindex, ConstantInt::get(T_int8, 1));
                             Value *ndims = (nd == -1 ? emit_arrayndims(ctx, ary) : ConstantInt::get(T_int16, nd));
                             Value *is_vector = ctx.builder.CreateICmpEQ(ndims, ConstantInt::get(T_int16, 1));
-                            Value *offset = emit_arrayoffset(ctx, ary);
+                            Value *offset = emit_arrayoffset(ctx, ary, nd);
                             Value *selidx_v = ctx.builder.CreateSub(emit_vectormaxsize(ctx, ary), ctx.builder.CreateZExt(offset, T_size));
                             Value *selidx_m = emit_arraylen(ctx, ary);
                             Value *selidx = ctx.builder.CreateSelect(is_vector, selidx_v, selidx_m);
-                            Value *elsize = emit_arrayelsize(ctx, ary);
-                            selidx = ctx.builder.CreateMul(selidx, elsize);
-                            selidx = ctx.builder.CreateAdd(selidx, offset);
                             Value *ptindex = ctx.builder.CreateInBoundsGEP(AT, data, selidx);
                             ptindex = emit_bitcast(ctx, ptindex, T_pint8);
+                            ptindex = ctx.builder.CreateInBoundsGEP(T_int8, ptindex, offset);
                             ptindex = ctx.builder.CreateInBoundsGEP(T_int8, ptindex, idx);
                             tbaa_decorate(tbaa_arrayselbyte, ctx.builder.CreateStore(tindex, ptindex));
                             if (jl_is_datatype(val.typ) && jl_datatype_size(val.typ) == 0) {
@@ -6835,13 +6831,12 @@ static void init_julia_llvm_env(Module *m)
 #endif
                       , T_int16
                       , T_int16
+                      , T_int32
     };
     static_assert(sizeof(jl_array_flags_t) == sizeof(int16_t),
                   "Size of jl_array_flags_t is not the same as int16_t");
     jl_array_llvmt =
-        StructType::create(jl_LLVMContext,
-                           ArrayRef<Type*>(vaelts,sizeof(vaelts)/sizeof(vaelts[0])),
-                           "jl_array_t");
+        StructType::create(jl_LLVMContext, makeArrayRef(vaelts), "jl_array_t");
     jl_parray_llvmt = PointerType::get(jl_array_llvmt, 0);
 
     global_to_llvm("__stack_chk_guard", (void*)&__stack_chk_guard, m);

@@ -1771,8 +1771,10 @@ static Value *emit_arrayelsize(jl_codectx_t &ctx, const jl_cgval_t &tinfo)
     return tbaa_decorate(tbaa_const, ctx.builder.CreateLoad(addr));
 }
 
-static Value *emit_arrayoffset(jl_codectx_t &ctx, const jl_cgval_t &tinfo)
+static Value *emit_arrayoffset(jl_codectx_t &ctx, const jl_cgval_t &tinfo, int nd)
 {
+    if (nd != -1 && nd != 1) // only Vector can have an offset
+        return ConstantInt::get(T_int32, 0);
     Value *t = boxed(ctx, tinfo);
 #ifdef STORE_ARRAY_LEN
     int offset_field = 4;
