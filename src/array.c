@@ -924,14 +924,18 @@ STATIC_INLINE void jl_array_shrink(jl_array_t *a, size_t dec)
         //malloc-allocated pointer this array object manages
         char *typetagdata;
         char *newtypetagdata;
-        if (isbitsunion) typetagdata = jl_array_typetagdata(a);
+        if (isbitsunion) {
+            typetagdata = malloc(a->nrows);
+            memcpy(typetagdata, jl_array_typetagdata(a), a->nrows);
+        }
         size_t oldoffsnb = a->offset * elsz;
-        a->data = jl_gc_managed_realloc(originalptr, newbytes, oldnbytes,
-                                        a->flags.isaligned, (jl_value_t*) a) + oldoffsnb;
+        a->data = ((char*) jl_gc_managed_realloc(originalptr, newbytes, oldnbytes,
+                                        a->flags.isaligned, (jl_value_t*) a)) + oldoffsnb;
         a->maxsize -= dec;
         if (isbitsunion) {
             newtypetagdata = jl_array_typetagdata(a);
-            memmove(newtypetagdata, typetagdata, a->nrows);
+            memcpy(newtypetagdata, typetagdata, a->nrows);
+            free(typetagdata);
         }
     }
     else if (a->flags.how == 3) {
