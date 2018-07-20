@@ -600,12 +600,12 @@ static int NOINLINE array_resize_buffer(jl_array_t *a, size_t newlen)
     size_t oldnbytes = a->maxsize * elsz;
     size_t oldoffsnb = a->offset * elsz;
     size_t oldlen = a->nrows;
+    int isbitsunion = jl_array_isbitsunion(a);
     assert(nbytes >= oldnbytes);
-    if (elsz == 1) {
+    if (elsz == 1 && !isbitsunion) {
         nbytes++;
         oldnbytes++;
     }
-    int isbitsunion = jl_array_isbitsunion(a);
     if (isbitsunion) {
         nbytes += newlen;
         oldnbytes += a->maxsize;
@@ -913,6 +913,11 @@ STATIC_INLINE void jl_array_shrink(jl_array_t *a, size_t dec)
     int newbytes = (a->maxsize - dec) * a->elsize;
     int oldnbytes = (a->maxsize) * a->elsize;
     int isbitsunion = jl_array_isbitsunion(a);
+    if (elsz == 1 && !isbitsunion)
+    {
+        newbytes++;
+        oldnbytes++;
+    }
     if (isbitsunion) {
         newbytes += a->maxsize - dec;
         oldnbytes += a->maxsize;

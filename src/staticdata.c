@@ -585,10 +585,11 @@ static void jl_write_values(jl_serializer_state *s)
                 assert(data < ((uintptr_t)1 << RELOC_TAG_OFFSET) && "offset to constant data too large");
                 arraylist_push(&s->relocs_list, (void*)(reloc_offset + offsetof(jl_array_t, data))); // relocation location
                 arraylist_push(&s->relocs_list, (void*)(((uintptr_t)ConstDataRef << RELOC_TAG_OFFSET) + data)); // relocation target
-                if (ar->elsize == 1)
+                int isbitsunion = jl_array_isbitsunion(ar);
+                if (ar->elsize == 1 && !isbitsunion)
                     tot += 1;
                 ios_write(s->const_data, (char*)jl_array_data(ar), tot);
-                if (jl_array_isbitsunion(ar))
+                if (isbitsunion)
                     ios_write(s->const_data, jl_array_typetagdata(ar), alen);
             }
             else {
