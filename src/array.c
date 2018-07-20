@@ -832,6 +832,7 @@ STATIC_INLINE void jl_array_grow_at_end(jl_array_t *a, size_t idx,
                           ? (reqmaxsize < 4 ? 4 : reqmaxsize)
                           : a->maxsize * 2;
         newmaxsize = limit_overallocation(a, n, newmaxsize, inc);
+        size_t oldmaxsize = a->maxsize;
         int newbuf = array_resize_buffer(a, newmaxsize);
         char *newdata = (char*)a->data + a->offset * elsz;
         if (isbitsunion) newtypetagdata = newdata + (a->maxsize - a->offset) * elsz + a->offset;
@@ -846,6 +847,7 @@ STATIC_INLINE void jl_array_grow_at_end(jl_array_t *a, size_t idx,
         }
         else {
             if (isbitsunion) {
+                typetagdata = newdata + (oldmaxsize - a->offset) * elsz + a->offset;
                 if (has_gap) memmove(newtypetagdata + idx + inc, typetagdata + idx, n - idx);
                 memmove(newtypetagdata, typetagdata, idx);
                 memset(newtypetagdata + idx, 0, inc);
