@@ -5893,7 +5893,7 @@ for U in unboxedunions
             resize!(A, len)
             @test length(A) === len
             @test A[1] === initvalue2(F2)
-            @test A[end] === initvalue2(F2)
+            @test typeof(A[end]) === F
 
             # deleteat!
             F = Base.uniontypes(U)[2]

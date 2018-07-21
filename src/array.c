@@ -722,11 +722,11 @@ STATIC_INLINE void jl_array_grow_at_beg(jl_array_t *a, size_t idx, size_t inc,
         // already have enough space in a->offset
         newdata = data - nbinc;
         a->offset -= inc;
+        if (isbitsunion) newtypetagdata = typetagdata - inc;
         if (idx > 0) {
             // inserting new elements after 1st element
             memmove(newdata, data, idx * elsz);
             if (isbitsunion) {
-                newtypetagdata = typetagdata - inc;
                 memmove(newtypetagdata, typetagdata, idx);
                 memset(newtypetagdata + idx, 0, inc);
             }
@@ -752,24 +752,18 @@ STATIC_INLINE void jl_array_grow_at_beg(jl_array_t *a, size_t idx, size_t inc,
             if (isbitsunion) {
                 typetagdata = data + (oldmaxsize - oldoffset) * elsz + oldoffset;
                 newtypetagdata = newdata + (a->maxsize - newoffset) * elsz + newoffset;
+                memmove(newtypetagdata, typetagdata, idx);
+                memset(newtypetagdata + idx, 0, inc);
+                memmove(newtypetagdata + idx + inc, typetagdata + idx, n - idx);
             }
             // We could use memcpy if resizing allocates a new buffer,
             // hopefully it's not a particularly important optimization.
             if (idx > 0 && newdata < data) {
                 memmove(newdata, data, nb1);
-                if (isbitsunion) {
-                    memmove(newtypetagdata, typetagdata, idx);
-                    memset(newtypetagdata + idx, 0, inc);
-                }
             }
             memmove(newdata + nbinc + nb1, data + nb1, n * elsz - nb1);
-            if (isbitsunion) memmove(newtypetagdata + idx + inc, typetagdata + idx, n - idx);
             if (idx > 0 && newdata > data) {
                 memmove(newdata, data, nb1);
-                if (isbitsunion) {
-                    memmove(newtypetagdata, typetagdata, idx);
-                    memset(newtypetagdata + idx, 0, inc);
-                }
             }
             a->offset = newoffset;
         }
@@ -803,6 +797,9 @@ STATIC_INLINE void jl_array_grow_at_beg(jl_array_t *a, size_t idx, size_t inc,
     a->data = newdata;
     if (a->flags.ptrarray) {
         memset(newdata + idx * elsz, 0, nbinc);
+    }
+    else if (isbitsunion) {
+        memset(newtypetagdata + idx, 0, inc);
     }
 }
 
@@ -869,9 +866,11 @@ STATIC_INLINE void jl_array_grow_at_end(jl_array_t *a, size_t idx,
         size_t nb1 = idx * elsz;
         memmove(data + nb1 + inc * elsz, data + nb1, n * elsz - nb1);
     }
-    // else {
-    //     there was enough room for requested growth already in a->maxsize
-    // }
+    else {
+        // there was enough room for requested growth already in a->maxsize
+        if (isbitsunion)
+            memset(typetagdata + idx, 0, inc);
+    }
     size_t newnrows = n + inc;
 #ifdef STORE_ARRAY_LEN
     a->length = newnrows;
