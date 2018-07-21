@@ -6079,6 +6079,7 @@ Base._growat!(A, 1048576, 1)
 @test length(A) == 1048578
 foreach(1:1048575) do i
     @test Base.arrayref(true, A, i) === i % UInt8
+    @test A[i] === i % UInt8
 end
 @test Base.arrayref(true, A, 1048576) === missing
 @test Base.arrayref(true, A, 1048577) === 1048576 % UInt8

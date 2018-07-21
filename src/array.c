@@ -651,7 +651,7 @@ static int NOINLINE array_resize_buffer(jl_array_t *a, size_t newlen)
             jl_gc_wb_buf(a, a->data, nbytes);
         }
     }
-    if (JL_ARRAY_IMPL_NUL && elsz == 1)
+    if (JL_ARRAY_IMPL_NUL && elsz == 1 && !isbitsunion)
         memset((char*)a->data + oldnbytes - 1, 0, nbytes - oldnbytes + 1);
     (void)oldlen;
     assert(oldlen == a->nrows &&
