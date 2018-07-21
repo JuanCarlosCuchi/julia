@@ -734,7 +734,9 @@ STATIC_INLINE void jl_array_grow_at_beg(jl_array_t *a, size_t idx, size_t inc,
     }
     else {
         // not enough room for requested growth from existing a->offset
-        size_t oldoffsnb = a->offset * elsz;
+        size_t oldoffset = a->offset;
+        size_t oldoffsnb = oldoffset * elsz;
+        size_t oldmaxsize = a->maxsize;
         size_t nb1 = idx * elsz;
         if (inc > (a->maxsize - n) / 2 - (a->maxsize - n) / 20) {
             // not enough room for requested growth from end of array
@@ -747,7 +749,10 @@ STATIC_INLINE void jl_array_grow_at_beg(jl_array_t *a, size_t idx, size_t inc,
                 data = (char*)a->data + oldoffsnb;
             }
             newdata = (char*)a->data + newoffset * elsz;
-            if (isbitsunion) newtypetagdata = newdata + (a->maxsize - newoffset) * elsz + newoffset;
+            if (isbitsunion) {
+                typetagdata = data + (oldmaxsize - oldoffset) * elsz + oldoffset;
+                newtypetagdata = newdata + (a->maxsize - newoffset) * elsz + newoffset;
+            }
             // We could use memcpy if resizing allocates a new buffer,
             // hopefully it's not a particularly important optimization.
             if (idx > 0 && newdata < data) {
